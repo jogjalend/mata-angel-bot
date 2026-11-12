@@ -9,7 +9,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # Pemisah rapi - ubah di sini aja kalau mau ganti gaya garis
-SEP = "─────────────────────────────────────────"
+SEP = "───────────────────────────"
 
 _pool = None
 _is_init = False
