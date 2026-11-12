@@ -65,7 +65,7 @@ async def is_admin(update, context):
     except:
         return False
 
-# ================= COMMANDS - MATA ANGEL TEGAS FORMAL =================
+# ================= COMMANDS =================
 async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     if chat.type == "private":
@@ -130,7 +130,7 @@ async def mata_off(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
 async def id_grup(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🆔 ID Grup ini adalah:\n`{update.effective_chat.id}`\n\nSilakan simpan ID tersebut untuk keperluan administrasi.")
 
-# ================= TRACK MEMBER - TEGAS FORMAL =================
+# ================= TRACK MEMBER - VIA CHAT_MEMBER =================
 async def track_member(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     if not update.chat_member:
         return
@@ -176,6 +176,35 @@ async def track_member(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     elif new_status in ["left", "kicked"]:
         await context.bot.send_message(chat_id=chat_id, text=f"👁️ MATA ANGEL\n\nAnggota Meninggalkan Grup\n\nNama: {user.full_name}\nUsername: @{user.username}\nWaktu: {waktu}\n\nKepergian anggota telah dicatat dalam sistem.")
 
+# ================= TRACK JOIN/LEAVE - VIA PESAN SISTEM (FIX JOIN VIA LINK) =================
+async def track_join_leave_msg(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg:
+        return
+    chat_id = int(update.effective_chat.id)
+    await ensure_group(chat_id, update.effective_chat.title)
+    s = await get_settings(chat_id)
+    if not s["mata_active"]:
+        return
+    waktu = datetime.now().strftime("%d %B %Y - %H:%M WIB")
+
+    if msg.new_chat_members:
+        for user in msg.new_chat_members:
+            if user.is_bot:
+                continue
+            await db_exec(
+                "INSERT INTO menfessangel_users (chat_id, user_id, name, username) VALUES ($1,$2,$3,$4) "
+                "ON CONFLICT (chat_id, user_id) DO UPDATE SET name=$3, username=$4, updated_at=NOW()",
+                chat_id, user.id, user.full_name, user.username
+            )
+            await context.bot.send_message(chat_id=chat_id, text=f"👁️ MATA ANGEL\n\nAnggota Baru Bergabung\n\nNama: {user.full_name}\nUsername: @{user.username}\nWaktu: {waktu}\n\nSelamat datang. Harap mematuhi peraturan grup yang berlaku.")
+
+    if msg.left_chat_member:
+        user = msg.left_chat_member
+        if not user.is_bot:
+            await context.bot.send_message(chat_id=chat_id, text=f"👁️ MATA ANGEL\n\nAnggota Meninggalkan Grup\n\nNama: {user.full_name}\nUsername: @{user.username}\nWaktu: {waktu}\n\nKepergian anggota telah dicatat dalam sistem.")
+
+# ================= SAVE MESSAGE + DETEKSI GANTI NAMA =================
 async def save_message(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg or not msg.text:
@@ -212,6 +241,7 @@ ptb_app.add_handler(CommandHandler("mata_on", mata_on))
 ptb_app.add_handler(CommandHandler("mata_off", mata_off))
 ptb_app.add_handler(CommandHandler("idgrup", id_grup))
 ptb_app.add_handler(ChatMemberHandler(track_member, ChatMemberHandler.CHAT_MEMBER))
+ptb_app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS | filters.StatusUpdate.LEFT_CHAT_MEMBER, track_join_leave_msg))
 ptb_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, save_message))
 
 web_app = FastAPI()
