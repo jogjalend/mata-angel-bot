@@ -8,6 +8,9 @@ import asyncpg
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
+# Pemisah rapi - ubah di sini aja kalau mau ganti gaya garis
+SEP = "─────────────────────────────────────────"
+
 _pool = None
 _is_init = False
 
@@ -72,34 +75,33 @@ async def is_admin(update, context):
     except:
         return False
 
-# ================= KEYBOARD =================
-# Di GRUP: TIDAK ADA panel admin sama sekali. Hanya tombol lempar ke private.
+# ================= KEYBOARD - 2x2 RAPI =================
 def group_short_kb(bot_username, chat_id):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Buka Panel Admin (Private)", url=f"https://t.me/{bot_username}?start=admin_{chat_id}")],
     ])
 
-# Di PRIVATE: baru ada Tab Admin
 def admin_tabs_kb(active_tab="overview", mata_active=True):
-    def tab_label(name, key):
+    def tab(name, key):
         return f"● {name}" if active_tab == key else name
-    status_txt = "AKTIF" if mata_active else "NONAKTIF"
     kb = [
-        [InlineKeyboardButton(tab_label("Ringkasan", "overview"), callback_data="admin_tab_overview"),
-         InlineKeyboardButton(tab_label("Anggota", "anggota"), callback_data="admin_tab_anggota"),
-         InlineKeyboardButton(tab_label("Laporan", "laporan"), callback_data="admin_tab_laporan"),
-         InlineKeyboardButton(tab_label("Pengaturan", "pengaturan"), callback_data="admin_tab_pengaturan")],
+        [InlineKeyboardButton(tab("Ringkasan", "overview"), callback_data="admin_tab_overview"),
+         InlineKeyboardButton(tab("Anggota", "anggota"), callback_data="admin_tab_anggota")],
+        [InlineKeyboardButton(tab("Laporan", "laporan"), callback_data="admin_tab_laporan"),
+         InlineKeyboardButton(tab("Pengaturan", "pengaturan"), callback_data="admin_tab_pengaturan")],
+        [InlineKeyboardButton(f"{SEP}", callback_data="noop")],
     ]
     if active_tab == "overview":
+        status_txt = "AKTIF" if mata_active else "NONAKTIF"
         kb += [
-            [InlineKeyboardButton(f"Status Pengawasan: {status_txt}", callback_data="admin_tab_pengaturan")],
+            [InlineKeyboardButton(f"Status: {status_txt}", callback_data="admin_tab_pengaturan")],
             [InlineKeyboardButton("Lihat Laporan Lengkap", callback_data="admin_tab_laporan")],
         ]
     elif active_tab == "anggota":
         kb += [
-            [InlineKeyboardButton("5 Anggota Terakhir Bergabung", callback_data="admin_list_join")],
-            [InlineKeyboardButton("5 Perubahan Nama Terakhir", callback_data="admin_list_nama")],
-            [InlineKeyboardButton("Semua Anggota Terpantau", callback_data="admin_list_all")],
+            [InlineKeyboardButton("5 Anggota Terakhir", callback_data="admin_list_join")],
+            [InlineKeyboardButton("5 Perubahan Nama", callback_data="admin_list_nama")],
+            [InlineKeyboardButton("Semua Anggota", callback_data="admin_list_all")],
         ]
     elif active_tab == "laporan":
         kb += [
@@ -123,10 +125,6 @@ def back_menu_kb():
         [InlineKeyboardButton("Kembali ke Menu Utama", callback_data="menu_back")],
     ])
 
-def detect_kb():
-    # Di grup: deteksi TIDAK ada tombol Panel Admin, hanya info singkat
-    return None
-
 # ================= HELPERS =================
 async def get_overview_text(chat_id, title):
     users = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_users WHERE chat_id=$1", chat_id)
@@ -138,28 +136,37 @@ async def get_overview_text(chat_id, title):
         for i, u in enumerate(recent, 1):
             recent_txt += f"{i}. {u['name']} (@{u['username']})\n"
     else:
-        recent_txt = "Belum ada data anggota.\n"
+        recent_txt = "Belum ada data anggota."
     return (
-        f"PANEL ADMIN - RINGKASAN\n\n"
-        f"Nama Grup: {title}\n"
-        f"ID Grup: {chat_id}\n"
-        f"Status Pengawasan: {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\n\n"
-        f"Jumlah Anggota Terpantau: {users[0]['c']} orang\n"
-        f"Jumlah Pesan Tercatat: {msgs[0]['c']} pesan\n\n"
-        f"Aktivitas Terakhir:\n{recent_txt}\n"
-        f"Panel ini hanya dapat diakses melalui obrolan pribadi. Data grup tidak dibagikan ke grup."
+        f"PANEL ADMIN\n"
+        f"{SEP}\n"
+        f"Grup : {title}\n"
+        f"ID : {chat_id}\n"
+        f"Status : {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\n"
+        f"{SEP}\n"
+        f"Anggota Terpantau : {users[0]['c']} orang\n"
+        f"Pesan Tercatat : {msgs[0]['c']} pesan\n"
+        f"{SEP}\n"
+        f"Aktivitas Terakhir :\n{recent_txt}"
     )
 
 async def get_anggota_text(chat_id, title):
     total = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_users WHERE chat_id=$1", chat_id)
     recent = await db_fetch("SELECT name, username, updated_at FROM menfessangel_users WHERE chat_id=$1 ORDER BY updated_at DESC LIMIT 10", chat_id)
-    txt = f"PANEL ADMIN - DATA ANGGOTA\n\nNama Grup: {title}\nTotal Anggota Terpantau: {total[0]['c']} orang\n\n10 Anggota Terakhir Terpantau:\n"
+    txt = (
+        f"PANEL ADMIN - ANGGOTA\n"
+        f"{SEP}\n"
+        f"Grup : {title}\n"
+        f"Total : {total[0]['c']} orang\n"
+        f"{SEP}\n"
+        f"10 Anggota Terakhir :\n"
+    )
     if not recent:
         txt += "Belum ada data anggota."
     else:
         for i, u in enumerate(recent, 1):
             tgl = u['updated_at'].strftime("%d/%m %H:%M") if u['updated_at'] else "-"
-            txt += f"{i}. {u['name']} (@{u['username']}) - {tgl}\n"
+            txt += f"{i}. {u['name']} (@{u['username']})\n   {tgl}\n"
     return txt
 
 async def get_laporan_text(chat_id, title=""):
@@ -167,31 +174,32 @@ async def get_laporan_text(chat_id, title=""):
     msgs = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_messages WHERE chat_id=$1", chat_id)
     s = await get_settings(chat_id)
     return (
-        f"MATA ANGEL - LAPORAN PENGAWASAN\n\n"
-        f"Nama Grup: {title}\n"
-        f"ID Grup: {chat_id}\n"
-        f"Jumlah Anggota Terpantau: {users[0]['c']} orang\n"
-        f"Jumlah Pesan Tercatat: {msgs[0]['c']} pesan\n\n"
-        f"Status Pengawasan: {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\n"
-        f"Waktu Laporan: {datetime.now().strftime('%d %B %Y - %H:%M WIB')}\n\n"
-        f"Pengawasan dilaksanakan sesuai dengan ketentuan yang berlaku."
+        f"PANEL ADMIN - LAPORAN\n"
+        f"{SEP}\n"
+        f"Grup : {title}\n"
+        f"ID : {chat_id}\n"
+        f"{SEP}\n"
+        f"Anggota Terpantau : {users[0]['c']} orang\n"
+        f"Pesan Tercatat : {msgs[0]['c']} pesan\n"
+        f"Status : {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\n"
+        f"{SEP}\n"
+        f"Waktu : {datetime.now().strftime('%d %B %Y - %H:%M WIB')}"
     )
 
 async def get_pengaturan_text(chat_id, title):
     s = await get_settings(chat_id)
     return (
-        f"PANEL ADMIN - PENGATURAN\n\n"
-        f"Nama Grup: {title}\n"
-        f"ID Grup: {chat_id}\n\n"
-        f"Status Pengawasan Saat Ini: {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\n\n"
-        f"Pengaturan yang tersedia:\n"
+        f"PANEL ADMIN - PENGATURAN\n"
+        f"{SEP}\n"
+        f"Grup : {title}\n"
+        f"ID : {chat_id}\n"
+        f"{SEP}\n"
+        f"Status Saat Ini : {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\n\n"
         f"1. Aktifkan / Nonaktifkan Pengawasan\n"
         f"2. Melihat ID Grup\n"
-        f"3. Bantuan Penggunaan\n\n"
-        f"Silakan gunakan tombol di bawah ini untuk mengubah pengaturan."
+        f"3. Bantuan Penggunaan"
     )
 
-# Helper: ambil target grup untuk panel private dari context.user_data
 def get_panel_chat_id(context):
     return context.user_data.get("panel_chat_id")
 
@@ -200,16 +208,12 @@ async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     bot_username = context.bot.username or "MataAngelBot"
     args = context.args
-
-    # --- START DARI GRUP -> BUKA PANEL DI PRIVATE ---
-    # Klik "Buka Panel Admin" di grup akan lari ke sini: /start admin_-100xxx
     if chat.type == "private" and args and args[0].startswith("admin_"):
         try:
             target_id = int(args[0].replace("admin_", ""))
         except:
             await update.message.reply_text("Mohon maaf. Tautan Panel Admin tidak valid.")
             return
-        # Verifikasi: yang klik harus admin di grup itu
         if not await is_admin_of(target_id, update.effective_user.id, context):
             await update.message.reply_text("Mohon maaf. Panel Admin hanya dapat diakses oleh Administrator grup yang bersangkutan.")
             return
@@ -224,7 +228,6 @@ async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
         text = await get_overview_text(target_id, g_title)
         await update.message.reply_text(text, reply_markup=admin_tabs_kb("overview", s['mata_active']))
         return
-
     if chat.type == "private":
         await update.message.reply_text(
             "Selamat Datang di Mata Angel\n\n"
@@ -244,7 +247,6 @@ async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
     else:
-        # --- DI GRUP: JANGAN KIRIM PANEL, HANYA KONFIRMASI + TOMBOL KE PRIVATE ---
         await ensure_group(chat.id, chat.title)
         s = await get_settings(chat.id)
         await update.message.reply_text(
@@ -259,7 +261,6 @@ async def admin_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     bot_username = context.bot.username or "MataAngelBot"
     if chat.type == "private":
-        # Di private tanpa argumen, minta buka dari grup dulu
         if get_panel_chat_id(context):
             target_id = get_panel_chat_id(context)
             try:
@@ -280,7 +281,6 @@ async def admin_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
                 ])
             )
         return
-    # DI GRUP: JANGAN TAMPILKAN PANEL, KIRIM TOMBOL KE PRIVATE SAJA
     if not await is_admin(update, context):
         await update.message.reply_text("Mohon maaf. Panel Admin hanya dapat diakses oleh Administrator grup.")
         return
@@ -305,7 +305,6 @@ async def menu_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
             ])
         )
         return
-    # Di grup: menu singkat, tanpa data sensitif
     await ensure_group(chat.id, chat.title)
     s = await get_settings(chat.id)
     await update.message.reply_text(
@@ -317,7 +316,6 @@ async def menu_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def laporan(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
-    # Laporan di grup: hanya ringkasan, detail lengkap hanya di private
     if update.effective_chat.type != "private" and not await is_admin(update, context):
         await update.message.reply_text("Mohon maaf. Perintah ini hanya dapat diakses oleh Administrator grup.")
         return
@@ -330,7 +328,6 @@ async def laporan(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=group_short_kb(bot_username, update.effective_chat.id)
         )
         return
-    # Di private: pakai panel_chat_id
     target_id = get_panel_chat_id(context)
     if not target_id:
         await update.message.reply_text("Silakan buka Panel Admin melalui grup Anda terlebih dahulu.")
@@ -413,15 +410,16 @@ async def help_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=group_short_kb(bot_username, update.effective_chat.id)
     )
 
-# ================= CALLBACK - HANYA DI PRIVATE UNTUK PANEL =================
+# ================= CALLBACK =================
 async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    data = query.data
+    if data == "noop":
+        await query.answer()
+        return
     await query.answer()
     chat = update.effective_chat
-    data = query.data
     bot_username = context.bot.username or "MataAngelBot"
-
-    # Kalau tombol panel diklik DI GRUP (pesan lama), tolak dan arahkan ke private
     if chat.type != "private" and (data.startswith("admin_") or data in ["menu_laporan", "mata_on", "mata_off"]):
         await query.answer("Panel Admin hanya dapat dibuka melalui obrolan pribadi.", show_alert=True)
         try:
@@ -432,15 +430,12 @@ async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
         return
-
-    # Di private, harus ada target grup
     if chat.type == "private":
         target_id = get_panel_chat_id(context)
         if not target_id and data.startswith("admin_"):
             await query.edit_message_text("Silakan buka Panel Admin melalui grup Anda terlebih dahulu. Kirim /admin pada grup, lalu tekan tombol Buka Panel Admin (Private).")
             return
         if target_id:
-            # Verifikasi ulang admin
             if not await is_admin_of(target_id, update.effective_user.id, context):
                 await query.answer("Anda bukan Administrator grup ini.", show_alert=True)
                 return
@@ -450,7 +445,6 @@ async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
             except:
                 g_title = f"Grup {target_id}"
             s = await get_settings(target_id)
-
             if data == "admin_tab_overview":
                 text = await get_overview_text(target_id, g_title)
                 await query.edit_message_text(text, reply_markup=admin_tabs_kb("overview", s['mata_active']))
@@ -461,36 +455,35 @@ async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
                 text = await get_laporan_text(target_id, g_title)
                 await query.edit_message_text(text, reply_markup=admin_tabs_kb("laporan", s['mata_active']))
             elif data == "admin_tab_pengaturan":
-                from datetime import datetime as _dt
                 text = await get_pengaturan_text(target_id, g_title)
                 await query.edit_message_text(text, reply_markup=admin_tabs_kb("pengaturan", s['mata_active']))
             elif data == "admin_list_join":
                 rows = await db_fetch("SELECT name, username, updated_at FROM menfessangel_users WHERE chat_id=$1 ORDER BY updated_at DESC LIMIT 5", target_id)
-                txt = "PANEL ADMIN - 5 ANGGOTA TERAKHIR BERGABUNG\n\n"
+                txt = f"PANEL ADMIN - ANGGOTA TERBARU\n{SEP}\n"
                 if not rows:
                     txt += "Belum ada data anggota."
                 else:
                     for i, u in enumerate(rows, 1):
                         tgl = u['updated_at'].strftime("%d %B %Y %H:%M") if u['updated_at'] else "-"
-                        txt += f"{i}. {u['name']} (@{u['username']})\n   Terpantau: {tgl}\n"
+                        txt += f"{i}. {u['name']} (@{u['username']})\n   {tgl}\n"
                 await query.edit_message_text(txt, reply_markup=admin_tabs_kb("anggota", s['mata_active']))
             elif data == "admin_list_nama":
                 rows = await db_fetch("SELECT name, username, updated_at FROM menfessangel_users WHERE chat_id=$1 ORDER BY updated_at DESC LIMIT 5", target_id)
-                txt = "PANEL ADMIN - 5 PERUBAHAN NAMA TERAKHIR\n\n"
+                txt = f"PANEL ADMIN - PERUBAHAN NAMA\n{SEP}\n"
                 if not rows:
                     txt += "Belum ada perubahan nama yang tercatat."
                 else:
                     for i, u in enumerate(rows, 1):
                         txt += f"{i}. {u['name']} (@{u['username']})\n"
-                txt += "\nCatatan: Perubahan nama terdeteksi secara otomatis saat anggota mengirim pesan atau memperbarui profil."
+                txt += "\nPerubahan nama terdeteksi otomatis saat anggota mengirim pesan."
                 await query.edit_message_text(txt, reply_markup=admin_tabs_kb("anggota", s['mata_active']))
             elif data == "admin_list_all":
                 total = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_users WHERE chat_id=$1", target_id)
-                txt = f"PANEL ADMIN - SEMUA ANGGOTA TERPANTAU\n\nTotal: {total[0]['c']} orang\n\nGunakan menu Anggota untuk melihat 10 anggota terakhir secara detail."
+                txt = f"PANEL ADMIN - SEMUA ANGGOTA\n{SEP}\nTotal: {total[0]['c']} orang\n\nGunakan menu Anggota untuk melihat 10 anggota terakhir secara detail."
                 await query.edit_message_text(txt, reply_markup=admin_tabs_kb("anggota", s['mata_active']))
             elif data == "admin_laporan_hari":
                 msgs = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_messages WHERE chat_id=$1 AND created_at >= NOW() - INTERVAL '1 day'", target_id)
-                txt = f"PANEL ADMIN - LAPORAN HARI INI\n\nNama Grup: {g_title}\nPesan Tercatat 24 Jam Terakhir: {msgs[0]['c']} pesan\nWaktu: {datetime.now().strftime('%d %B %Y - %H:%M WIB')}"
+                txt = f"PANEL ADMIN - LAPORAN HARI INI\n{SEP}\nGrup : {g_title}\nPesan 24 Jam Terakhir : {msgs[0]['c']} pesan\nWaktu : {datetime.now().strftime('%d %B %Y - %H:%M WIB')}"
                 await query.edit_message_text(txt, reply_markup=admin_tabs_kb("laporan", s['mata_active']))
             elif data == "admin_laporan_full":
                 text = await get_laporan_text(target_id, g_title)
@@ -501,23 +494,23 @@ async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
                 text = await get_laporan_text(target_id, g_title)
                 await query.edit_message_text(text, reply_markup=admin_tabs_kb("laporan", s['mata_active']))
             elif data == "menu_idgrup":
-                await query.edit_message_text(f"INFORMASI ID GRUP\n\nID Grup ini adalah:\n{target_id}\n\nMohon simpan ID tersebut untuk keperluan administrasi grup.", reply_markup=admin_tabs_kb("pengaturan", s['mata_active']))
+                await query.edit_message_text(f"INFORMASI ID GRUP\n{SEP}\nID Grup :\n{target_id}", reply_markup=admin_tabs_kb("pengaturan", s['mata_active']))
             elif data == "menu_status":
-                await query.edit_message_text(f"STATUS PENGAWASAN MATA ANGEL\n\nNama Grup: {g_title}\nStatus: {'AKTIF - Pengawasan sedang berlangsung' if s['mata_active'] else 'NONAKTIF - Pengawasan dihentikan sementara'}\nWaktu Pemeriksaan: {datetime.now().strftime('%d %B %Y - %H:%M WIB')}", reply_markup=admin_tabs_kb("overview", s['mata_active']))
+                await query.edit_message_text(f"STATUS PENGAWASAN\n{SEP}\nGrup : {g_title}\nStatus : {'AKTIF' if s['mata_active'] else 'NONAKTIF'}\nWaktu : {datetime.now().strftime('%d %B %Y - %H:%M WIB')}", reply_markup=admin_tabs_kb("overview", s['mata_active']))
             elif data == "mata_on":
                 await db_exec("UPDATE menfessangel_groups SET mata_active=TRUE WHERE chat_id=$1", target_id)
-                await query.edit_message_text("Pengawasan Mata Angel telah diaktifkan. Mulai saat ini, seluruh aktivitas grup akan kembali dipantau.", reply_markup=admin_tabs_kb("pengaturan", True))
+                await query.edit_message_text("Pengawasan Mata Angel telah diaktifkan.", reply_markup=admin_tabs_kb("pengaturan", True))
             elif data == "mata_off":
                 await db_exec("UPDATE menfessangel_groups SET mata_active=FALSE WHERE chat_id=$1", target_id)
-                await query.edit_message_text("Pengawasan Mata Angel telah dinonaktifkan. Untuk mengaktifkan kembali, silakan tekan tombol yang tersedia di bawah ini.", reply_markup=admin_tabs_kb("pengaturan", False))
+                await query.edit_message_text("Pengawasan Mata Angel telah dinonaktifkan.", reply_markup=admin_tabs_kb("pengaturan", False))
             elif data == "menu_help":
-                await query.edit_message_text("PANDUAN PENGGUNAAN MATA ANGEL\n\nPanel Admin hanya dibuka melalui obrolan pribadi.\nKirim /admin pada grup, lalu tekan tombol Buka Panel Admin (Private).\n\nPerintah:\n/admin - Panel Admin\n/laporan - Laporan\n/mata_on - Aktifkan pengawasan\n/mata_off - Nonaktifkan pengawasan", reply_markup=admin_tabs_kb("pengaturan", s['mata_active']))
+                await query.edit_message_text(f"PANDUAN PENGGUNAAN MATA ANGEL\n{SEP}\nPanel Admin hanya dibuka melalui obrolan pribadi.\nKirim /admin pada grup, lalu tekan tombol Buka Panel Admin (Private).", reply_markup=admin_tabs_kb("pengaturan", s['mata_active']))
             elif data == "menu_back":
                 text = await get_overview_text(target_id, g_title)
                 await query.edit_message_text(text, reply_markup=admin_tabs_kb("overview", s['mata_active']))
             return
 
-# ================= TRACK MEMBER - DI GRUP HANYA NOTIF SINGKAT, TANPA PANEL =================
+# ================= TRACK MEMBER =================
 async def track_member(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     if not update.chat_member:
         return
@@ -550,8 +543,6 @@ async def track_join_leave_msg(update: TgUpdate, context: ContextTypes.DEFAULT_T
     chat_id = int(update.effective_chat.id)
     bot_username = context.bot.username or "MataAngelBot"
     await ensure_group(chat_id, update.effective_chat.title)
-
-    # === BOT BARU DI-ADD KE GRUP -> JANGAN KIRIM PANEL, HANYA KONFIRMASI SINGKAT + TOMBOL KE PRIVATE ===
     if msg.new_chat_members:
         for u in msg.new_chat_members:
             if u.id == context.bot.id:
