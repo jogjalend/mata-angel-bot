@@ -8,7 +8,6 @@ import asyncpg
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# Pemisah rapi - ubah di sini aja kalau mau ganti gaya garis
 SEP = "───────────────────────────"
 
 _pool = None
@@ -75,7 +74,7 @@ async def is_admin(update, context):
     except:
         return False
 
-# ================= KEYBOARD - 2x2 RAPI =================
+# ================= KEYBOARD =================
 def group_short_kb(bot_username, chat_id):
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Buka Panel Admin (Private)", url=f"https://t.me/{bot_username}?start=admin_{chat_id}")],
@@ -89,7 +88,6 @@ def admin_tabs_kb(active_tab="overview", mata_active=True):
          InlineKeyboardButton(tab("Anggota", "anggota"), callback_data="admin_tab_anggota")],
         [InlineKeyboardButton(tab("Laporan", "laporan"), callback_data="admin_tab_laporan"),
          InlineKeyboardButton(tab("Pengaturan", "pengaturan"), callback_data="admin_tab_pengaturan")],
-        [InlineKeyboardButton(f"{SEP}", callback_data="noop")],
     ]
     if active_tab == "overview":
         status_txt = "AKTIF" if mata_active else "NONAKTIF"
@@ -104,10 +102,7 @@ def admin_tabs_kb(active_tab="overview", mata_active=True):
             [InlineKeyboardButton("Semua Anggota", callback_data="admin_list_all")],
         ]
     elif active_tab == "laporan":
-        kb += [
-            [InlineKeyboardButton("Laporan Hari Ini", callback_data="admin_laporan_hari")],
-            [InlineKeyboardButton("Laporan Lengkap", callback_data="admin_laporan_full")],
-        ]
+        pass
     elif active_tab == "pengaturan":
         if mata_active:
             kb += [[InlineKeyboardButton("Nonaktifkan Pengawasan", callback_data="mata_off")]]
@@ -117,7 +112,6 @@ def admin_tabs_kb(active_tab="overview", mata_active=True):
             [InlineKeyboardButton("ID Grup", callback_data="menu_idgrup")],
             [InlineKeyboardButton("Bantuan", callback_data="menu_help")],
         ]
-    kb += [[InlineKeyboardButton("Tutup Panel", callback_data="admin_close")]]
     return InlineKeyboardMarkup(kb)
 
 def back_menu_kb():
@@ -481,15 +475,6 @@ async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
                 total = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_users WHERE chat_id=$1", target_id)
                 txt = f"PANEL ADMIN - SEMUA ANGGOTA\n{SEP}\nTotal: {total[0]['c']} orang\n\nGunakan menu Anggota untuk melihat 10 anggota terakhir secara detail."
                 await query.edit_message_text(txt, reply_markup=admin_tabs_kb("anggota", s['mata_active']))
-            elif data == "admin_laporan_hari":
-                msgs = await db_fetch("SELECT COUNT(*) as c FROM menfessangel_messages WHERE chat_id=$1 AND created_at >= NOW() - INTERVAL '1 day'", target_id)
-                txt = f"PANEL ADMIN - LAPORAN HARI INI\n{SEP}\nGrup : {g_title}\nPesan 24 Jam Terakhir : {msgs[0]['c']} pesan\nWaktu : {datetime.now().strftime('%d %B %Y - %H:%M WIB')}"
-                await query.edit_message_text(txt, reply_markup=admin_tabs_kb("laporan", s['mata_active']))
-            elif data == "admin_laporan_full":
-                text = await get_laporan_text(target_id, g_title)
-                await query.edit_message_text(text, reply_markup=admin_tabs_kb("laporan", s['mata_active']))
-            elif data == "admin_close":
-                await query.edit_message_text("Panel Admin telah ditutup. Untuk membuka kembali, silakan kirim perintah /admin pada grup Anda, lalu tekan tombol Buka Panel Admin (Private).")
             elif data == "menu_laporan":
                 text = await get_laporan_text(target_id, g_title)
                 await query.edit_message_text(text, reply_markup=admin_tabs_kb("laporan", s['mata_active']))
