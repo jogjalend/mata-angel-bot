@@ -65,7 +65,7 @@ async def is_admin(update, context):
     except:
         return False
 
-# ================= KEYBOARD - GAYA SANGMATA =================
+# ================= KEYBOARD =================
 def main_menu_kb(mata_active=True):
     status_btn = "👁️ Mata: AKTIF ✅" if mata_active else "👁️ Mata: NONAKTIF 💤"
     return InlineKeyboardMarkup([
@@ -74,19 +74,16 @@ def main_menu_kb(mata_active=True):
         [InlineKeyboardButton(status_btn, callback_data="menu_status")],
         [InlineKeyboardButton("✅ Aktifkan Mata", callback_data="mata_on"),
          InlineKeyboardButton("💤 Nonaktifkan Mata", callback_data="mata_off")],
-        [InlineKeyboardButton("❓ Bantuan", callback_data="menu_help"),
-         InlineKeyboardButton("🔄 Refresh", callback_data="menu_refresh")],
+        [InlineKeyboardButton("❓ Bantuan", callback_data="menu_help")],
     ])
 
 def back_menu_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Kembali ke Menu", callback_data="menu_back")],
-        [InlineKeyboardButton("🔄 Refresh", callback_data="menu_refresh")],
     ])
 
 def laporan_kb():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Refresh Laporan", callback_data="menu_laporan")],
         [InlineKeyboardButton("🔙 Kembali ke Menu", callback_data="menu_back")],
     ])
 
@@ -94,6 +91,13 @@ def detect_kb():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 Lihat Laporan", callback_data="menu_laporan"),
          InlineKeyboardButton("👁️ Menu Utama", callback_data="menu_back")],
+    ])
+
+def private_menu_kb(bot_username):
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ Tambahkan ke Grup", url=f"https://t.me/{bot_username}?startgroup=true")],
+        [InlineKeyboardButton("👥 Cara Pasang di Grup", callback_data="menu_help")],
+        [InlineKeyboardButton("📊 Contoh Laporan", callback_data="menu_laporan")],
     ])
 
 # ================= HELPERS =================
@@ -115,6 +119,7 @@ async def get_laporan_text(chat_id, title=""):
 # ================= COMMANDS =================
 async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
+    bot_username = context.bot.username or "MataAngelBot"
     if chat.type == "private":
         await update.message.reply_text(
             "👁️ MATA ANGEL\n"
@@ -125,12 +130,9 @@ async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
             "2. Mendeteksi anggota yang bergabung dan meninggalkan grup\n"
             "3. Mencatat aktivitas anggota untuk keperluan laporan\n\n"
             "Cara Pemasangan:\n"
-            "Undang saya ke grup Anda, jadikan Admin, kemudian kirim perintah /start di grup tersebut.\n\n"
-            "Silakan gunakan tombol di bawah untuk mengelola bot.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("👥 Cara Pasang di Grup", callback_data="menu_help")],
-                [InlineKeyboardButton("📊 Contoh Laporan", callback_data="menu_laporan")],
-            ])
+            "Tekan tombol Tambahkan ke Grup di bawah, pilih grup Anda, jadikan saya Admin, kemudian kirim /start di grup tersebut.\n\n"
+            "Silakan gunakan tombol di bawah.",
+            reply_markup=private_menu_kb(bot_username)
         )
     else:
         await ensure_group(chat.id, chat.title)
@@ -147,6 +149,15 @@ async def start(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
 
 async def menu_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
+    if chat.type == "private":
+        bot_username = context.bot.username or "MataAngelBot"
+        await update.message.reply_text(
+            "👁️ MENU UTAMA MATA ANGEL\n\n"
+            "Anda berada di chat pribadi.\n"
+            "Untuk menggunakan Mata Angel, tambahkan saya ke grup Anda terlebih dahulu.",
+            reply_markup=private_menu_kb(bot_username)
+        )
+        return
     await ensure_group(chat.id, chat.title)
     s = await get_settings(chat.id)
     await update.message.reply_text(
@@ -189,6 +200,28 @@ async def id_grup(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def help_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
+    bot_username = context.bot.username or "MataAngelBot"
+    if update.effective_chat.type == "private":
+        await update.message.reply_text(
+            "❓ BANTUAN MATA ANGEL\n\n"
+            "Cara Pasang:\n"
+            "1. Tekan tombol Tambahkan ke Grup di bawah\n"
+            "2. Pilih grup Anda\n"
+            "3. Jadikan saya Admin\n"
+            "4. Kirim /start di grup tersebut\n\n"
+            "Perintah di Grup:\n"
+            "/start - Menu utama\n"
+            "/menu - Menu tombol\n"
+            "/laporan - Laporan pengawasan\n"
+            "/mata_on - Aktifkan pengawasan\n"
+            "/mata_off - Nonaktifkan pengawasan\n"
+            "/idgrup - ID grup",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("➕ Tambahkan ke Grup", url=f"https://t.me/{bot_username}?startgroup=true")],
+                [InlineKeyboardButton("🔙 Kembali ke Menu", callback_data="menu_back")],
+            ])
+        )
+        return
     await update.message.reply_text(
         "❓ BANTUAN MATA ANGEL\n\n"
         "Perintah yang tersedia:\n"
@@ -202,15 +235,15 @@ async def help_cmd(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=back_menu_kb()
     )
 
-# ================= CALLBACK - SEMUA TOMBOL =================
+# ================= CALLBACK =================
 async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     chat = update.effective_chat
     chat_id = int(chat.id)
     data = query.data
+    bot_username = context.bot.username or "MataAngelBot"
 
-    # Cek admin untuk aksi sensitif
     if data in ["menu_laporan", "mata_on", "mata_off"] and chat.type != "private":
         if not await is_admin(update, context):
             await query.answer("Perintah ini hanya untuk Admin.", show_alert=True)
@@ -249,30 +282,41 @@ async def button_handler(update: TgUpdate, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=main_menu_kb(False)
         )
     elif data == "menu_help":
-        await query.edit_message_text(
-            "❓ BANTUAN MATA ANGEL\n\n"
-            "Perintah yang tersedia:\n"
-            "/start - Menu utama\n"
-            "/menu - Menu tombol\n"
-            "/laporan - Laporan pengawasan\n"
-            "/mata_on - Aktifkan pengawasan\n"
-            "/mata_off - Nonaktifkan pengawasan\n"
-            "/idgrup - ID grup\n\n"
-            "Semua perintah juga dapat diakses melalui tombol.",
-            reply_markup=back_menu_kb()
-        )
-    elif data == "menu_refresh":
-        await ensure_group(chat_id, chat.title)
-        s = await get_settings(chat_id)
-        await query.edit_message_text(
-            f"👁️ MENU UTAMA MATA ANGEL\n\n"
-            f"Grup: {chat.title}\n"
-            f"Status: {'AKTIF ✅' if s['mata_active'] else 'NONAKTIF 💤'}\n"
-            f"Terakhir diperbarui: {datetime.now().strftime('%H:%M WIB')}\n\n"
-            f"Silakan pilih menu di bawah.",
-            reply_markup=main_menu_kb(s['mata_active'])
-        )
+        if chat.type == "private":
+            await query.edit_message_text(
+                "❓ BANTUAN MATA ANGEL\n\n"
+                "Cara Pasang:\n"
+                "1. Tekan tombol Tambahkan ke Grup\n"
+                "2. Pilih grup Anda\n"
+                "3. Jadikan saya Admin\n"
+                "4. Kirim /start di grup tersebut",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("➕ Tambahkan ke Grup", url=f"https://t.me/{bot_username}?startgroup=true")],
+                    [InlineKeyboardButton("🔙 Kembali ke Menu", callback_data="menu_back")],
+                ])
+            )
+        else:
+            await query.edit_message_text(
+                "❓ BANTUAN MATA ANGEL\n\n"
+                "Perintah yang tersedia:\n"
+                "/start - Menu utama\n"
+                "/menu - Menu tombol\n"
+                "/laporan - Laporan pengawasan\n"
+                "/mata_on - Aktifkan pengawasan\n"
+                "/mata_off - Nonaktifkan pengawasan\n"
+                "/idgrup - ID grup\n\n"
+                "Semua perintah juga dapat diakses melalui tombol.",
+                reply_markup=back_menu_kb()
+            )
     elif data == "menu_back":
+        if chat.type == "private":
+            await query.edit_message_text(
+                "👁️ MENU UTAMA MATA ANGEL\n\n"
+                "Selamat datang di Mata Angel.\n"
+                "Silakan tambahkan saya ke grup Anda untuk memulai pengawasan.",
+                reply_markup=private_menu_kb(bot_username)
+            )
+            return
         await ensure_group(chat_id, chat.title)
         s = await get_settings(chat_id)
         await query.edit_message_text(
